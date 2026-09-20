@@ -101,7 +101,7 @@ class handler(BaseHTTPRequestHandler):
         self.send_response(200)
         self.send_header('Content-Type', 'application/json')
         self.end_headers()
-        response = {"status": "ok", "message": "Alice webhook is running"}
+        response = {"status": "ok", "message": "Alice webhook is running", "env_variables": { "TEXT_NOT_UNDERSTOOD": TEXT_NOT_UNDERSTOOD } }
         self.wfile.write(json.dumps(response).encode('utf-8'))
     
     def get_ai_response(self, user_message: str) -> str:
