@@ -5,13 +5,22 @@ from http.server import BaseHTTPRequestHandler
 
 # Получаем настройки из переменных окружения
 DEEPSEEK_API_KEY = os.environ.get('DEEPSEEK_API_KEY')
-SYSTEM_PROMPT = os.environ.get('SYSTEM_PROMPT', 'Ты полезный ассистент Агент GPT. Отвечай кратко (3-5 предложений обычно и не более 10 предложений если много информации, если не попросят другое) и по делу на русском языке.')
+SYSTEM_PROMPT = os.environ.get('SYSTEM_PROMPT', 'Ты полезный ассистент. Отвечай кратко и по делу на русском языке.')
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 # Тексты ответов
-TEXT_NOT_UNDERSTOOD = os.environ.get('TEXT_NOT_UNDERSTOOD', 'Я что-то не понял, что ты сказал. Повторите.')
-TEXT_DEEPSEEK_ERROR = os.environ.get('TEXT_DEEPSEEK_ERROR', 'Упс, у нас какие-то проблемки при запросе к ИИ модели.')
-TEXT_GENERAL_ERROR = os.environ.get('TEXT_GENERAL_ERROR', 'Произошла какая-то ошибка. Попробуй попозже, хорошо.')
+TEXT_NOT_UNDERSTOOD = os.environ.get('TEXT_NOT_UNDERSTOOD', 'Я не поняла, что вы сказали. Повторите, пожалуйста.')
+TEXT_DEEPSEEK_ERROR = os.environ.get('TEXT_DEEPSEEK_ERROR', 'Извините, произошла ошибка при обработке запроса.')
+TEXT_GENERAL_ERROR = os.environ.get('TEXT_GENERAL_ERROR', 'Произошла ошибка. Попробуйте позже.')
+
+# Приветствие и команды
+TEXT_WELCOME = os.environ.get('TEXT_WELCOME', 'О, привет! Я ваш настоящий ИИ ассистент. Счас буду тебе помогать?')
+TEXT_GOODBYE = os.environ.get('TEXT_GOODBYE', 'Давай пока, еще увидимся думаю!.')
+TEXT_HELP = os.environ.get('TEXT_HELP', 'Я легко могу ответить на все твои вопросы. Задавай, а чтобы выйти, скажи "выход".')
+
+# Команды для выхода и помощи (можно настроить)
+EXIT_COMMANDS = ['выход', 'выйти', 'закрыть', 'пока', 'до свидания']
+HELP_COMMANDS = ['помощь', 'помоги', 'что ты умеешь', 'команды']
 
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
@@ -20,31 +29,47 @@ class handler(BaseHTTPRequestHandler):
             body = self.rfile.read(content_length).decode('utf-8')
             data = json.loads(body)
             
-            user_text = data.get("request", {}).get("command", "")
+            user_text = data.get("request", {}).get("command", "").lower().strip()
             version = data.get("version", "1.0")
             session = data.get("session", {})
             
-            if not user_text:
-                response = {
-                    "response": {
-                        "text": TEXT_NOT_UNDERSTOOD,
-                        "tts": TEXT_NOT_UNDERSTOOD,
-                        "end_session": False
-                    },
-                    "version": version
-                }
-            else:
-                ai_response = self.get_ai_response(user_text)
-                response = {
-                    "response": {
-                        "text": ai_response,
-                        "tts": ai_response,
-                        "end_session": False
-                    },
-                    "session": session,
-                    "version": version
-                }
+            # Проверяем, это новый сеанс (первое сообщение)
+            is_new_session = data.get("session", {}).get("new", False)
             
+            # Определяем ответ
+            if is_new_session:
+                # Приветствие при первом запуске
+                response_text = TEXT_WELCOME
+                end_session = False
+            elif user_text in EXIT_COMMANDS:
+                # Команда выхода
+                response_text = TEXT_GOODBYE
+                end_session = True
+            elif user_text in HELP_COMMANDS:
+                # Команда помощи
+                response_text = TEXT_HELP
+                end_session = False
+            elif not user_text:
+                # Пустой запрос
+                response_text = TEXT_NOT_UNDERSTOOD
+                end_session = False
+            else:
+                # Обычный запрос к DeepSeek
+                response_text = self.get_ai_response(user_text)
+                end_session = False
+            
+            # Формируем ответ
+            response = {
+                "response": {
+                    "text": response_text,
+                    "tts": response_text,
+                    "end_session": end_session
+                },
+                "session": session,
+                "version": version
+            }
+            
+            # Отправляем ответ
             self.send_response(200)
             self.send_header('Content-Type', 'application/json; charset=utf-8')
             self.end_headers()
