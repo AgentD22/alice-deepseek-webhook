@@ -1,2 +1,2 @@
 # alice-deepseek-webhook
-Webhook для навыка Алисы
+Webhook для навыка Алисы, работающий через Deepseek
