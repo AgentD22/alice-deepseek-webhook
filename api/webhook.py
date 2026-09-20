@@ -22,6 +22,13 @@ TEXT_HELP = os.environ.get('TEXT_HELP', 'Я легко могу ответить
 EXIT_COMMANDS = ['выход', 'выйти', 'закрыть', 'пока', 'до свидания']
 HELP_COMMANDS = ['помощь', 'помоги', 'что ты умеешь', 'команды']
 
+# Логируем переменные окружения
+print("=" * 50)
+print("ЗАГРУЖЕННЫЕ ПЕРЕМЕННЫЕ ОКРУЖЕНИЯ:")
+print(f"SYSTEM_PROMPT: {SYSTEM_PROMPT[:50]}...")
+print(f"TEXT_NOT_UNDERSTOOD: {TEXT_NOT_UNDERSTOOD}")
+print("=" * 50)
+
 class handler(BaseHTTPRequestHandler):
     def do_POST(self):
         try:
