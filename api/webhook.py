@@ -9,7 +9,7 @@ SYSTEM_PROMPT = os.environ.get('SYSTEM_PROMPT', 'Ты полезный асси�
 DEEPSEEK_API_URL = "https://api.deepseek.com/v1/chat/completions"
 
 # Тексты ответов
-TEXT_NOT_UNDERSTOOD = os.environ.get('TEXT_NOT_UNDERSTOOD', 'Слушаю внимательно.')
+TEXT_NOT_UNDERSTOOD = os.environ.get('TEXT_NOT_UNDERSTOOD', 'Слушаю очень внимательно...')
 TEXT_DEEPSEEK_ERROR = os.environ.get('TEXT_DEEPSEEK_ERROR', 'Извините, произошла ошибка при обработке запроса.')
 TEXT_GENERAL_ERROR = os.environ.get('TEXT_GENERAL_ERROR', 'Произошла ошибка. Попробуйте позже.')
 
