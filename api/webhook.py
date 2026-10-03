@@ -87,7 +87,18 @@ class handler(BaseHTTPRequestHandler):
             session = data.get("session", {})
             is_new_session = session.get("new", False)
 
+            # Алиса возвращает session_state, который мы отправили в предыдущем ответе.
+            # Он хранит контекст только в рамках текущей сессии навыка.
+            state = data.get("state", {})
+            if not isinstance(state, dict):
+                state = {}
+            session_state = state.get("session", {})
+            if not isinstance(session_state, dict):
+                session_state = {}
+            history = self.normalize_history(session_state.get("history", []))
+
             if is_new_session:
+                history = []
                 response_text = TEXT_WELCOME
                 end_session = False
             elif normalized_command in EXIT_COMMANDS:
@@ -105,23 +116,31 @@ class handler(BaseHTTPRequestHandler):
                 ai_prompt, send_to_telegram = self.extract_telegram_request(user_text)
 
                 if not ai_prompt:
-                    ai_prompt = (
-                        "Пользователь просит отправить ответ в Telegram, "
-                        "но не задал вопрос. Вежливо попроси его уточнить, "
-                        "на какой вопрос нужно ответить."
+                    response_text = (
+                        "Уточните, пожалуйста, на какой вопрос ответ нужно отправить в Telegram."
                     )
+                    end_session = False
+                else:
+                    response_text = self.get_ai_response(ai_prompt, history)
+                    end_session = False
 
-                response_text = self.get_ai_response(ai_prompt)
-                end_session = False
+                    # Сохраняем очищенный запрос и ответ, а не служебную просьбу
+                    # о пересылке в Telegram.
+                    if response_text != TEXT_DEEPSEEK_ERROR:
+                        history.extend([
+                            {"role": "user", "content": ai_prompt},
+                            {"role": "assistant", "content": response_text},
+                        ])
+                        history = history[-20:]  # последние 10 пар реплик
 
-                # Отправляем в Telegram тот же готовый ответ, который получит Алиса.
-                # Сбой Telegram не должен мешать ответу Алисы.
-                if send_to_telegram:
-                    try:
-                        self.send_telegram_message(response_text)
-                    except Exception:
-                        # Ошибка HTTP может содержать URL с токеном бота — не логируем её целиком.
-                        print("Не удалось отправить сообщение в Telegram; проверьте настройки и логи API.")
+                    # Отправляем в Telegram тот же ответ, который получит Алиса.
+                    # Сбой Telegram не должен мешать ответу Алисы.
+                    if send_to_telegram:
+                        try:
+                            self.send_telegram_message(response_text)
+                        except Exception:
+                            # HTTP-ошибка может содержать URL с токеном; не логируем её.
+                            print("Не удалось отправить сообщение в Telegram; проверьте настройки.")
 
             response = {
                 "response": {
@@ -130,6 +149,7 @@ class handler(BaseHTTPRequestHandler):
                     "end_session": end_session,
                 },
                 "session": session,
+                "session_state": {"history": history},
                 "version": version,
             }
             self.send_json_response(response)
@@ -216,7 +236,27 @@ class handler(BaseHTTPRequestHandler):
             raise RuntimeError("Telegram API отклонил отправку сообщения")
 
     @staticmethod
-    def get_ai_response(user_message: str) -> str:
+    def normalize_history(history):
+        """Проверяет и ограничивает историю, полученную из session_state Алисы."""
+        if not isinstance(history, list):
+            return []
+
+        normalized = []
+        for item in history[-20:]:
+            if not isinstance(item, dict):
+                continue
+            role = item.get("role")
+            content = item.get("content")
+            if role not in ("user", "assistant") or not isinstance(content, str):
+                continue
+            content = content.strip()
+            if content:
+                normalized.append({"role": role, "content": content[:1500]})
+
+        return normalized
+
+    @staticmethod
+    def get_ai_response(user_message: str, history=None) -> str:
         if not DEEPSEEK_API_KEY:
             print("Не задана переменная окружения DEEPSEEK_API_KEY")
             return TEXT_DEEPSEEK_ERROR
@@ -226,14 +266,15 @@ class handler(BaseHTTPRequestHandler):
             "Content-Type": "application/json",
         }
 
+        messages = [{"role": "system", "content": SYSTEM_PROMPT}]
+        messages.extend(handler.normalize_history(history))
+        messages.append({"role": "user", "content": user_message})
+
         payload = {
             "model": "deepseek-chat",
-            "messages": [
-                {"role": "system", "content": SYSTEM_PROMPT},
-                {"role": "user", "content": user_message},
-            ],
+            "messages": messages,
             "temperature": 0.7,
-            "max_tokens": 1000,
+            "max_tokens": 500,
         }
 
         try:
