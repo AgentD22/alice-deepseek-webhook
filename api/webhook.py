@@ -291,3 +291,4 @@ class handler(BaseHTTPRequestHandler):
         except Exception as error:
             print(f"Ошибка при запросе к DeepSeek: {error}")
             return TEXT_DEEPSEEK_ERROR
+            
